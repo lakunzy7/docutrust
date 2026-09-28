@@ -4,3 +4,9 @@ node_modules
 *.log
 timeout-*
 crash-*
+
+# The Chain A deliverable — local only, never committed or pushed.
+sop-project 1 to 3/
+
+# Local working notes — never committed or pushed.
+CLAUDE.md
