@@ -10,3 +10,6 @@ sop-project 1 to 3/
 
 # Local working notes — never committed or pushed.
 CLAUDE.md
+
+# graft's local graph cache — regenerable, not committed (run `graft build`).
+graft/
