@@ -3,6 +3,7 @@ const _ = require("lodash");
 const { pool } = require("../db");
 const { createDocumentSchema, createCommentSchema } = require("../validation");
 const { parseSearchQuery } = require("../lib/searchQuery");
+const { escapeHtml } = require("../lib/escapeHtml");
 
 const router = express.Router();
 
@@ -99,10 +100,15 @@ router.get("/:id", async (req, res) => {
 
 /**
  * SEEDED FINDING for Project 1 (SAST) and Project 3 (DAST/IAST): the
- * document title is written into the HTML response without escaping.
- * A title containing a script tag round-trips straight into the
- * response, a textbook reflected/stored XSS, deliberately left this
+ * document title was written into the HTML response without escaping.
+ * A title containing a script tag round-tripped straight into the
+ * response, a textbook reflected/stored XSS, deliberately left that
  * way for the same reason as the search endpoint above.
+ *
+ * FIXED in Project 1, Phase 6. Both values now pass through
+ * lib/escapeHtml.js before reaching the response. The vulnerable form
+ * is preserved at the commit preceding that fix, which is where
+ * Project 3 runs its external tests from.
  */
 router.get("/:id/render", async (req, res) => {
   try {
@@ -114,10 +120,29 @@ router.get("/:id/render", async (req, res) => {
     }
     const { title, body } = result.rows[0];
 
-    // VULNERABLE ON PURPOSE: no escaping applied to `title` or `body`
-    // before interpolating into HTML.
+    // Both values are escaped before they reach the response. The data is
+    // unchanged -- the browser is told to treat it as text rather than as
+    // markup, so a title containing a <script> tag renders as those
+    // characters instead of executing.
     res.set("Content-Type", "text/html");
-    res.send(`<html><body><h1>${title}</h1><p>${body}</p></body></html>`);
+    // The two findings Semgrep reports on the next line are false positives, and
+    // the suppression below is a recorded judgement rather than a silenced alert.
+    //
+    // Both values pass through escapeHtml() before reaching the response, which is
+    // the correct treatment for HTML element content. Semgrep's taint engine does
+    // not recognise a hand-written sanitizer -- it knows a fixed list, DOMPurify
+    // and similar -- so it reports an injection on code that no longer has one.
+    //
+    // The second rule, direct-response-write-with-header, is a structural warning
+    // about constructing HTML by hand at all. Satisfying it would mean adopting a
+    // template engine and adding a dependency that Project 1 has no business
+    // putting into the application's tree.
+    //
+    // This is precisely the gap Project 3's IAST tracer exists to close: it follows
+    // the value through the sanitizer we actually wrote, which is the thing a taint
+    // engine with a hard-coded sanitizer list structurally cannot do.
+    // nosemgrep: javascript.express.security.injection.raw-html-format.raw-html-format, javascript.express.direct-response-write-with-header.direct-response-write-with-header
+    res.send(`<html><body><h1>${escapeHtml(title)}</h1><p>${escapeHtml(body)}</p></body></html>`);
   } catch (err) {
     res.status(503).json({ error: "Database unavailable" });
   }
