@@ -32,18 +32,6 @@ router.post("/", async (req, res) => {
   }
 });
 
-router.get("/:id", async (req, res) => {
-  try {
-    const result = await pool.query("SELECT * FROM documents WHERE id = $1", [req.params.id]);
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: "Not found" });
-    }
-    res.json(result.rows[0]);
-  } catch (err) {
-    res.status(503).json({ error: "Database unavailable" });
-  }
-});
-
 /**
  * SEEDED FINDING for Project 1 (SAST) and Project 3 (DAST): the query
  * below is built with raw string concatenation instead of a
@@ -57,6 +45,13 @@ router.get("/:id", async (req, res) => {
  * parseSearchQuery() from lib/searchQuery.js, Project 7's fuzz target,
  * documented there. One endpoint, three different testing
  * methodologies (SAST, DAST, fuzzing), three different real findings.
+ *
+ * Registered BEFORE "/:id", and that ordering is load-bearing. Express
+ * matches in registration order, and "/:id" matches any single path
+ * segment -- so with "/search" defined after it, a request to
+ * /documents/search was captured by the ":id" handler, handed to
+ * Postgres as a document id, and rejected as an invalid integer. The
+ * route was unreachable and no request ever reached the code below.
  */
 router.get("/search", async (req, res) => {
   const q = req.query.q || "";
@@ -76,6 +71,18 @@ router.get("/search", async (req, res) => {
     const query = `SELECT id, title FROM documents WHERE title ILIKE '%${searchTerm}%'`;
     const result = await pool.query(query);
     res.json(result.rows);
+  } catch (err) {
+    res.status(503).json({ error: "Database unavailable" });
+  }
+});
+
+router.get("/:id", async (req, res) => {
+  try {
+    const result = await pool.query("SELECT * FROM documents WHERE id = $1", [req.params.id]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Not found" });
+    }
+    res.json(result.rows[0]);
   } catch (err) {
     res.status(503).json({ error: "Database unavailable" });
   }
