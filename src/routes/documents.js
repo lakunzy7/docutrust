@@ -41,6 +41,11 @@ router.post("/", async (req, res) => {
  * separately. Compare against the parameterized queries above and in
  * comments.js below, that contrast is the point.
  *
+ * FIXED in Project 1, Phase 6. The statement below now passes the search
+ * term as a bound parameter, so it is treated as data rather than parsed
+ * as SQL. The vulnerable form is preserved at the commit preceding that
+ * fix, which is where Project 3 runs its external tests from.
+ *
  * This same endpoint also calls the intentionally naive
  * parseSearchQuery() from lib/searchQuery.js, Project 7's fuzz target,
  * documented there. One endpoint, three different testing
@@ -66,10 +71,14 @@ router.get("/search", async (req, res) => {
   const searchTerm = tokens.map((t) => t.value).join(" ");
 
   try {
-    // VULNERABLE ON PURPOSE, see comment above. Do not "fix" this
-    // without it being Project 1 or Project 3's documented deliverable.
-    const query = `SELECT id, title FROM documents WHERE title ILIKE '%${searchTerm}%'`;
-    const result = await pool.query(query);
+    // The search term is a bound parameter, not part of the statement
+    // text. The wildcards belong to the value, so the driver escapes them
+    // along with everything else the user supplied -- there is no path by
+    // which a search term becomes SQL.
+    const result = await pool.query(
+      "SELECT id, title FROM documents WHERE title ILIKE $1",
+      [`%${searchTerm}%`]
+    );
     res.json(result.rows);
   } catch (err) {
     res.status(503).json({ error: "Database unavailable" });
