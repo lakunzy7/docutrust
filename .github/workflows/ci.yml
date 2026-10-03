@@ -104,8 +104,57 @@ jobs:
         # it does not ship, so its bar is high rather than moderate.
         run: npm audit --audit-level=high
 
+  # Added by Project 2, Phase 6. This is the enforcement half of
+  # SCORECARD-POLICY.md.
+  #
+  # This is the only stage in the pipeline that scores code we do not own.
+  # Every other job asks a question about DocuTrust; this one asks it about the
+  # projects DocuTrust is built on -- because a dependency we cannot patch is a
+  # risk we can only decline to take.
+  #
+  # It reads the dependency list from package.json rather than naming packages
+  # here. That is what makes it a gate on *new* dependencies: a package added
+  # in a pull request is scored by this job without anyone editing the job.
+  dependency-scorecard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Scorecard
+        # The same download-verify-install sequence the Gitleaks stage uses,
+        # for the same reason. Note the checksum file is scorecard_checksums.txt
+        # and not the version-stamped name it looks like it should be.
+        run: |
+          cd /tmp
+          curl -fsSLO https://github.com/ossf/scorecard/releases/download/v5.5.0/scorecard_5.5.0_linux_amd64.tar.gz
+          curl -fsSLO https://github.com/ossf/scorecard/releases/download/v5.5.0/scorecard_checksums.txt
+          sha256sum -c --ignore-missing scorecard_checksums.txt
+          tar -xzf scorecard_5.5.0_linux_amd64.tar.gz scorecard
+          sudo install -m 0755 scorecard /usr/local/bin/scorecard
+
+      - name: Score every declared dependency
+        # A token is required, and that was measured rather than assumed: an
+        # unauthenticated run did not finish in four minutes. SCORECARD_TOKEN is
+        # a personal access token and gives fuller results, because some checks
+        # -- Branch-Protection among them -- depend on what the token can read.
+        # The job still works without it, falling back to the workflow's own
+        # token, so the gate is not silently skipped on a repository that has
+        # not set the secret.
+        env:
+          GITHUB_AUTH_TOKEN: ${{ secrets.SCORECARD_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          FLOOR=5.0
+          for pkg in $(jq -r '.dependencies + .devDependencies | keys[]' package.json); do
+            echo "Scoring $pkg"
+            scorecard --npm="$pkg" --format=json -o /tmp/scorecard-check.json
+            jq -r '"\(.repo.name) -> \(.score)"' /tmp/scorecard-check.json
+            if jq -e --argjson f "$FLOOR" '.score < $f' /tmp/scorecard-check.json > /dev/null; then
+              echo "::error::$pkg falls below the $FLOOR floor in SCORECARD-POLICY.md"
+              exit 1
+            fi
+          done
+
   # Everything below this line is still a deliberate placeholder. Each
-  # remaining project in this track adds its own real stage here: the
-  # Scorecard threshold in Project 2 Phase 6, signing and provenance in
-  # Projects 4-5, and so on. Wiring a stage in before its project is reached
-  # would pre-solve the work rather than do it.
+  # remaining project in this track adds its own real stage here: signing and
+  # provenance in Projects 4-5, and so on. Wiring a stage in before its project
+  # is reached would pre-solve the work rather than do it.

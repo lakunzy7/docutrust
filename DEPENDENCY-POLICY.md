@@ -137,17 +137,18 @@ Stated so the boundary is explicit rather than implied.
 
 **Advisories that no database has published yet.** `npm audit` asks the GitHub Advisory
 Database. A dependency can be compromised, or vulnerable, before anything is filed, and this
-policy will not see it. The controls against that are the dependency confusion defence and the
-Scorecard threshold — different problems, different mechanisms.
+policy will not see it. The controls against that are the dependency confusion defence, which is
+the scope routing in `.npmrc`, and the Scorecard threshold in `SCORECARD-POLICY.md` — different
+problems, different mechanisms, and neither of them is this document.
 
 **Where a package came from.** This policy asks whether a package is *vulnerable*, not whether
 it is *the package the project meant to install*. A typosquatted name, or an internal-sounding
 name resolved from the public registry, passes every check in this document. That is deliberately
-out of scope here and covered separately.
+out of scope here and covered by the scope routing in `.npmrc`.
 
 **Whether the package should be a dependency at all.** A dependency with no advisories is not
 thereby a dependency worth having. This policy sets the bar a package has to clear; it does not
-argue for the package's existence.
+argue for the package's existence. That argument has its own bar, in `SCORECARD-POLICY.md`.
 
 ---
 
