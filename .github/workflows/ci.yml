@@ -66,8 +66,46 @@ jobs:
         # file is new, and new is what this stage refuses.
         run: gitleaks git . --redact
 
+  # Added by Project 2, Phase 3. This is the enforcement half of
+  # DEPENDENCY-POLICY.md. The thresholds in that document are only thresholds
+  # because this job refuses the merge; without it they are a description of a
+  # bar nobody is held to.
+  #
+  # Both commands are npm's own audit. Nothing is downloaded and no scanner is
+  # installed, so this stage adds no dependency to the tree it is judging --
+  # which matters, because a scanner fetching its own packages would be
+  # widening the surface it exists to measure.
+  sca:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        # npm ci runs first, and the ordering is load-bearing rather than
+        # conventional. npm audit requires a lockfile and exits 1 with ENOLOCK
+        # when there is none -- the same exit code it uses for a found
+        # vulnerability. With this step in place a failure below means an
+        # advisory; without it, a missing lockfile would look identical.
+        run: npm ci
+
+      - name: SCA - production dependencies (moderate and above)
+        # The tighter bar, on the tree that ships and runs. An advisory here is
+        # reachable by anyone who can reach the application.
+        run: npm audit --omit=dev --audit-level=moderate
+
+      - name: SCA - complete tree (high and above)
+        # The development tree is not exempt: it executes on this runner, and
+        # this runner holds the credentials that deploy. But it is deeper, and
+        # it does not ship, so its bar is high rather than moderate.
+        run: npm audit --audit-level=high
+
   # Everything below this line is still a deliberate placeholder. Each
-  # remaining project in this track adds its own real stage here: SCA and
-  # Scorecard in Project 2, signing and provenance in Projects 4-5, and so
-  # on. Wiring a stage in before its project is reached would pre-solve the
-  # work rather than do it.
+  # remaining project in this track adds its own real stage here: the
+  # Scorecard threshold in Project 2 Phase 6, signing and provenance in
+  # Projects 4-5, and so on. Wiring a stage in before its project is reached
+  # would pre-solve the work rather than do it.
