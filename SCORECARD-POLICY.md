@@ -150,8 +150,22 @@ in CI than the number this policy's floor was measured against. A threshold that
 on a workstation and another in the pipeline is worse than one that declines to run.
 
 So the job requires **`SCORECARD_TOKEN` — a classic personal access token with the `public_repo`
-scope**. The fallback to the workflow's own token is kept deliberately, so that a repository which
-has not set the secret fails loudly here rather than quietly scoring something weaker.
+scope**. `public_repo` is the least privilege that works, and that was measured rather than
+assumed: with the secret in place, all five dependencies scored in CI to the same decimal as on a
+workstation, `express` included. The fallback to the workflow's own token is kept deliberately, so
+that a repository which has not set the secret fails loudly here rather than quietly scoring
+something weaker.
+
+**The token expires, and that is part of the control rather than an inconvenience.** A secret with
+an expiry date makes this a gate that decays: on that date it stops working whether or not anyone
+remembered. This is the same shape as the exception register in `DEPENDENCY-POLICY.md` §3, and it
+fails in the same safe direction. **An expired token cannot pass quietly, and the reason is the
+behaviour measured in the paragraph above**: Scorecard treats a check it cannot read as fatal, and
+an expired token makes every check unreadable. The result is a red build, which *is* the reminder.
+
+The remedy is to issue a replacement and update the secret. Nothing else in this policy changes
+when that happens, and no score needs re-measuring — the floor is a property of the dependencies,
+not of the credential used to observe them.
 
 **It fails closed.** If a declared package cannot be resolved to an upstream repository, Scorecard
 exits non-zero and the job stops. A dependency the policy cannot evaluate is not a dependency the
