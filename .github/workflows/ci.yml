@@ -133,13 +133,30 @@ jobs:
           sudo install -m 0755 scorecard /usr/local/bin/scorecard
 
       - name: Score every declared dependency
-        # A token is required, and that was measured rather than assumed: an
-        # unauthenticated run did not finish in four minutes. SCORECARD_TOKEN is
-        # a personal access token and gives fuller results, because some checks
-        # -- Branch-Protection among them -- depend on what the token can read.
-        # The job still works without it, falling back to the workflow's own
-        # token, so the gate is not silently skipped on a repository that has
-        # not set the secret.
+        # A token is required, and both halves of that were measured rather
+        # than assumed.
+        #
+        # Unauthenticated: a run against a single dependency did not finish
+        # within four minutes.
+        #
+        # With the workflow's own token: @jazzer.js/core scored 5.8, matching
+        # the workstation to the decimal -- and the run then aborted on express
+        # with "some github tokens can't read classic branch protection rules".
+        # Reading branch protection on a repository we do not own is an
+        # administrative request, and GitHub does not grant it to this token.
+        # Scorecard treats a check it cannot read as fatal, so it exits 1
+        # rather than scoring the package over the checks it could read.
+        #
+        # That refusal is the behaviour worth having. The alternative is a
+        # number computed from a different set of checks here than the number
+        # SCORECARD-POLICY.md's floor was measured against, and a threshold
+        # that means one thing on a workstation and another in the pipeline is
+        # worse than one that declines to run.
+        #
+        # So SCORECARD_TOKEN must be a classic personal access token with the
+        # public_repo scope. The fallback is kept deliberately: a repository
+        # that has not set the secret should fail loudly here, not quietly
+        # score something weaker.
         env:
           GITHUB_AUTH_TOKEN: ${{ secrets.SCORECARD_TOKEN || secrets.GITHUB_TOKEN }}
         run: |

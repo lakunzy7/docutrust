@@ -132,11 +132,26 @@ The `dependency-scorecard` job in `.github/workflows/ci.yml`.
 this a gate on *new* dependencies: a package added in a pull request is scored by this job without
 anyone editing the job. A hardcoded list would silently stop covering the thing it exists to cover.
 
-**A token is required, and that was measured rather than assumed.** An unauthenticated run against
-a single dependency did not complete within four minutes. The job uses `SCORECARD_TOKEN` when the
-repository has one and falls back to the workflow's own token otherwise — so the gate is never
-silently skipped on a repository where the secret has not been set, and never silently weakened
-where it has.
+**A token is required, and the requirement is sharper than it first appears.** Two things were
+measured, and the second one changed the job.
+
+An unauthenticated run against a single dependency did not complete within four minutes.
+
+Then, with the workflow's own `GITHUB_TOKEN`: `@jazzer.js/core` scored **5.8 — matching the
+workstation exactly** — and the run then **aborted** on `express` with `some github tokens can't
+read classic branch protection rules`. Reading branch protection on a repository we do not own is
+an administrative request, and GitHub does not grant it to that token. Scorecard treats a check it
+cannot read as fatal: it exits non-zero rather than computing a score over the checks it *could*
+read.
+
+**That refusal is the behaviour worth keeping.** If Scorecard had quietly scored `express` over
+the readable checks, the gate would have produced a number derived from a different set of checks
+in CI than the number this policy's floor was measured against. A threshold that means one thing
+on a workstation and another in the pipeline is worse than one that declines to run.
+
+So the job requires **`SCORECARD_TOKEN` — a classic personal access token with the `public_repo`
+scope**. The fallback to the workflow's own token is kept deliberately, so that a repository which
+has not set the secret fails loudly here rather than quietly scoring something weaker.
 
 **It fails closed.** If a declared package cannot be resolved to an upstream repository, Scorecard
 exits non-zero and the job stops. A dependency the policy cannot evaluate is not a dependency the
